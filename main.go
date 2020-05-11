@@ -19,6 +19,7 @@ const (
 
 var (
   Port string = ":8081"
+  PREFIX uint8 = 24
   MAX_REQUEST int = 100 // предел запросов
   TIME_LIMIT int64 = 60 // лимит времени (секунды)
   TIME_WAIT int64 = 120 // ожидание после ограничения
@@ -109,7 +110,7 @@ func sender (conn net.Conn, RT int)(){
   }
 }
 
-func listener (conn net.Conn, RequestType chan int, FR *FilterRequest)(){
+func listener (conn net.Conn, FR *FilterRequest)(){
   defer func() {
     //fmt.Printf("Закрываем соединение с %v \n", conn.RemoteAddr())
     conn.Close()
@@ -219,7 +220,6 @@ func listener (conn net.Conn, RequestType chan int, FR *FilterRequest)(){
 
 func GetTcp () {
   //var status_page int
-  RequestType := make(chan int)
   FR := NewFilter()                                                                               // создаем буфер адрессов
   ln, err := net.Listen("tcp", Port)                                                                // устанавливаем прослушивание порта
   if err != nil {
@@ -232,20 +232,7 @@ func GetTcp () {
       fmt.Println("Error listening:", err.Error())                                                // TODO вывод ошибки
       continue
     }
-    go func() {
-      for {
-        RT := <- RequestType
-        //fmt.Println(RT)
-        MassVar := Http11(RT)
-        MassVar0 := MassVar[0:len(MassVar)]
-        for k := 0; k < len(MassVar0); k++ {
-          //fmt.Println(string(MassVar0[k]))
-          conn.Write([]byte(string(MassVar0[k] +"\n")))
-        }
-      }
-    }()
-    //fmt.Printf("Открываем соединение %v \n", conn.RemoteAddr())
-    go listener(conn, RequestType, FR)
+    go listener(conn, FR)
   }
 }
 
