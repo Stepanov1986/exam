@@ -1,6 +1,9 @@
 package main
 
 import (
+  //"os"
+  "flag"
+  "math"
   "net"
   "fmt"
   "bufio"
@@ -18,11 +21,11 @@ const (
 )
 
 var (
-  Port string = ":8081"
-  PREFIX uint8 = 24
-  MAX_REQUEST int = 100 // предел запросов
-  TIME_LIMIT int64 = 60 // лимит времени (секунды)
-  TIME_WAIT int64 = 120 // ожидание после ограничения
+  Port string
+  PREFIX float64
+  MAX_REQUEST int  // предел запросов
+  TIME_LIMIT int64 // лимит времени (секунды)
+  TIME_WAIT int64  // ожидание после ограничения
 )
 
 type FilterRequest struct {
@@ -111,6 +114,7 @@ func sender (conn net.Conn, RT int)(){
 }
 
 func listener (conn net.Conn, FR *FilterRequest)(){
+  maskB := 4294967295 - (math.Pow(2, 32-PREFIX)-1)
   defer func() {
     //fmt.Printf("Закрываем соединение с %v \n", conn.RemoteAddr())
     conn.Close()
@@ -132,9 +136,9 @@ func listener (conn net.Conn, FR *FilterRequest)(){
       result:= re.FindStringSubmatch(ms)
       if net.ParseIP(result[0]).To4() == nil {                                            // Проверка на IP
         sender(conn, 428)
+        break
       }
-      tmp_buf0 := make([]byte, 8)                                                         // TODO временный буфер для хранения IP
-      tmp_buf1 := make([]byte, 8)                                                         // TODO временный буфер для хранения MASK
+      tmp_buf0 := make([]byte, 4)                                                         // TODO временный буфер для хранения IP
       for i:=1; i<5; i++ {                                                                // записываем в буфер IP
         ui64, err := strconv.ParseUint(result[i], 10, 8)
         if err == nil {
@@ -143,9 +147,8 @@ func listener (conn net.Conn, FR *FilterRequest)(){
           fmt.Println(err)
         }
       }
-      copy(tmp_buf1, tmp_buf0)
-      tmp_buf1[3] = 0                                                                     // записываем в буфер MASK
-      mask := binary.BigEndian.Uint32(tmp_buf1)                                           // преобразуем MASK в число
+      ipI := binary.BigEndian.Uint32(tmp_buf0)
+      mask := ipI & uint32(maskB)
       time_now := time.Now().Unix()                                                       // получаем текущее время
       FR.Lock()
       list_time, ok := FR.adr_time[mask]                                                  // проверяем есть ли запись в буфере адрессов
@@ -237,7 +240,27 @@ func GetTcp () {
 }
 
 func main() {
+
+  port := flag.String("port", ":8081", "port")
+  prefix := flag.Int("prefix", 24, "префикс сети")
+  max_request := flag.Int("request", 100, "максимальное количество запросов в отведённое время")
+  time_limit := flag.Int64("time_limit", 60, "отведенное время")
+  time_wait := flag.Int64("time_wait", 120, "время блокировки")
+  flag.Parse()
+
+  Port = ":"+*port
+  PREFIX = float64(*prefix)
+  MAX_REQUEST = *max_request
+  TIME_LIMIT = *time_limit
+  TIME_WAIT = *time_wait
+
+
+  //fmt.Println(Port)
+  //fmt.Println(PREFIX)
+
+
   fmt.Println("Starting server...")
+
   // Создаем tcp подключение
   GetTcp()
 }
